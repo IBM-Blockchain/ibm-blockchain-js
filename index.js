@@ -57,7 +57,7 @@ var tempDirectory = path.join(__dirname, './temp');									//	=./temp - temp di
 // 2. register users with security (if present)
 // 3. load chaincode and parse
 // ============================================================================================================================
-ibc.prototype.load = function(options, cb){
+ibc.prototype.load = function(options, cb, usersFilterFunction, peerRegisterFunction){
 	var errors = [];
 	if(!options.network || !options.network.peers) errors.push('the option "network.peers" is required');
 
@@ -68,6 +68,14 @@ ibc.prototype.load = function(options, cb){
 		logger.error('! [ibc-js] Input Error - ibc.load()', errors);
 		if(cb) cb(helper.eFmt('load() input error', 400, errors));
 		return;																		//get out of dodge
+	}
+	
+	// Default values.
+	if(usersFilterFunction == null){
+		usersFilterFunction = helper.filter_users;
+	}
+	if(peerRegisterFunction == null){
+		peerRegisterFunction = defaultPeerRegisterFunction;
 	}
 
 	ibc.chaincode = {																//empty it all
@@ -98,7 +106,7 @@ ibc.prototype.load = function(options, cb){
 
 	// Step 2 - optional - only for secure networks
 	if(options.network.users){
-		options.network.users = helper.filter_users(options.network.users);			//only use the appropriate IDs filter out the rest
+		options.network.users = usersFilterFunction(options.network.users);			//only use the appropriate IDs filter out the rest
 	}
 	if(options.network.users && options.network.users.length > 0){
 		ibc.chaincode.details.users = options.network.users;
@@ -107,12 +115,7 @@ ibc.prototype.load = function(options, cb){
 			arr.push(i);															//build the list of indexes
 		}
 		async.each(arr, function(i, a_cb) {
-			if(options.network.users[i]){											//make sure we still have a enrollID for this network
-				var maxRetry = 2;
-				if(options.network.options && options.network.options.maxRetry) maxRetry = options.network.options.maxRetry;
-				ibc.prototype.register(i, options.network.users[i].enrollId, options.network.users[i].enrollSecret, maxRetry, a_cb);
-			}
-			else a_cb();
+			peerRegisterFunction(i, options, a_cb);
 		}, function(err, data){
 			if(err && cb) return cb(err);											//error already formated
 			else load_cc();
@@ -127,6 +130,16 @@ ibc.prototype.load = function(options, cb){
 	// Step 3
 	function load_cc(){
 		ibc.prototype.load_chaincode(options.chaincode, cb);						//download/parse and load chaincode
+	}
+	
+	// defaultPeerRegisterFunction() - Register the user with the same index as the peer, if any.
+	function defaultPeerRegisterFunction(peerIndex, options, cb){
+		if(options.network.users[i]){											//make sure we still have a enrollID for this network
+			var maxRetry = 2;
+			if(options.network.options && options.network.options.maxRetry) maxRetry = options.network.options.maxRetry;
+			ibc.prototype.register(i, options.network.users[i].enrollId, options.network.users[i].enrollSecret, maxRetry, cb);
+		}
+		else cb();
 	}
 };
 
