@@ -4,7 +4,7 @@ console.log("Now starting LoadTest.js");
 
 // Starting out by requiring all dependancies
 var test = require('tape');
-var Ibc1 = require('..');
+var Ibc1 = require('ibm-blockchain-js');
 
 // Then define new instances.
 var ibc = new Ibc1();
